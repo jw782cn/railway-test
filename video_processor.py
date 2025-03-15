@@ -213,6 +213,10 @@ class VideoProcessor:
                 "ffmpeg",
                 "-i",
                 input_file,
+                "-max_muxing_queue_size",
+                "1024",
+                "-bufsize",
+                "3M",
                 "-vf",
                 f"scale=-1:540,fps=fps=30,drawtext=text='%{{frame_num}}':x=10:y=h-th-10:fontfile={font_path}:fontsize=60:fontcolor=yellow:box=1:boxcolor=black@0.5"
                 if add_text
@@ -220,11 +224,13 @@ class VideoProcessor:
                 "-c:v",
                 "libx264",  # 视频编码使用h264
                 "-preset",
-                "medium",  # 编码速度和质量的平衡
+                "ultrafast",  # 改为最快的预设
                 "-crf",
                 "23",  # 视频质量参数
                 "-c:a",
                 "aac",  # 音频编码使用aac
+                "-b:a",
+                "64k",  # 降低音频比特率
                 "-y",  # 覆盖输出文件
                 output_file,
             ]
@@ -287,7 +293,9 @@ class VideoProcessor:
 
             # 创建代理文件
             process_start = time.time()
-            temp_output_file = self.create_proxy_with_counter(temp_input_file, add_text=add_text)
+            temp_output_file = self.create_proxy_with_counter(
+                temp_input_file, add_text=add_text
+            )
             process_time = time.time() - process_start
 
             # 构建代理文件的S3路径

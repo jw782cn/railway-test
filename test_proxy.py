@@ -10,13 +10,14 @@ load_dotenv()
 # 替换为您的Railway应用URL
 API_URL = os.environ.get("API_URL", "https://your-railway-app-url.railway.app")
 
-def test_create_proxy(object_key):
+def test_create_proxy(object_key, add_text=True):
     """测试代理视频创建API"""
     endpoint = f"{API_URL}/create-proxy"
     
     # 准备请求数据
     payload = {
-        "object_key": object_key
+        "object_key": object_key,
+        "add_text": add_text
     }
     
     print(f"正在发送请求到 {endpoint}")
@@ -76,10 +77,11 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         print("\n===== 测试代理视频创建 =====")
         object_key = sys.argv[1]
+        add_text = sys.argv[2] if len(sys.argv) > 2 else False
         
         # 测试直接创建代理
         print("\n1. 测试直接创建代理")
-        result = test_create_proxy(object_key)
+        result = test_create_proxy(object_key, add_text=add_text)
         
         if result:
             # 测试代理端点
