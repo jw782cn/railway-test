@@ -5,6 +5,7 @@ import uuid
 from botocore.exceptions import ClientError
 import ffmpeg
 import logging
+import time
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -140,4 +141,129 @@ class VideoProcessor:
         finally:
             # 无论成功与否，都清理临时文件
             if temp_file_path:
-                self.cleanup_temp_file(temp_file_path) 
+                self.cleanup_temp_file(temp_file_path)
+
+    def create_proxy_with_counter(self, input_file, output_file=None):
+        """
+        将视频压制为720p 30fps并添加帧数计数器
+        
+        Args:
+            input_file (str): 输入视频文件路径
+            output_file (str, optional): 输出视频文件路径，如果不指定则自动生成
+            
+        Returns:
+            str: 输出视频文件路径
+        """
+        try:
+            if output_file is None:
+                # 生成输出文件路径
+                file_dir = os.path.dirname(input_file)
+                file_name = os.path.splitext(os.path.basename(input_file))[0]
+                output_file = os.path.join(file_dir, f"{file_name}_proxy.mp4")
+
+            # 确保输出目录存在
+            output_dir = os.path.dirname(output_file)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+            logger.info(f"开始处理视频: {input_file}")
+            
+            # 使用ffmpeg-python构建处理流程
+            stream = ffmpeg.input(input_file)
+            
+            # 先进行压制到720p 30fps
+            stream = ffmpeg.filter(stream, 'scale', -1, 720)  # 保持宽高比，高度设为720
+            stream = ffmpeg.filter(stream, 'fps', fps=30)
+            
+            # 添加帧数计数器
+            stream = ffmpeg.filter(
+                stream,
+                'drawtext',
+                text='%{frame_num}',
+                x=10,
+                y='h-th-10',
+                fontsize=48,  # 由于是720p，字体设置小一些
+                fontcolor='yellow',
+                box=1,
+                boxcolor='black@0.5'
+            )
+            
+            # 设置输出参数
+            stream = ffmpeg.output(
+                stream,
+                output_file,
+                acodec='aac',  # 音频编码使用aac
+                vcodec='libx264',  # 视频编码使用h264
+                preset='medium',  # 编码速度和质量的平衡
+                crf=23  # 视频质量参数，范围0-51，越小质量越好
+            )
+            
+            # 执行处理
+            ffmpeg.run(stream, overwrite_output=True)
+            
+            logger.info(f"视频处理完成: {output_file}")
+            return output_file
+            
+        except Exception as e:
+            logger.error(f"视频处理失败: {str(e)}")
+            raise Exception(f"视频处理失败: {str(e)}")
+
+    def process_and_upload_proxy(self, bucket_name, object_key):
+        """
+        下载视频，创建代理文件（720p 30fps带帧数计数器），并上传到S3
+        
+        Args:
+            bucket_name (str): S3存储桶名称
+            object_key (str): S3对象键（路径）
+            
+        Returns:
+            dict: 包含原始视频和代理视频信息的字典
+        """
+        start_time = time.time()
+        temp_input_file = None
+        temp_output_file = None
+        try:
+            # 下载原始视频
+            download_start = time.time()
+            temp_input_file = self.download_video(bucket_name, object_key)
+            download_time = time.time() - download_start
+            
+            # 创建代理文件
+            process_start = time.time()
+            temp_output_file = self.create_proxy_with_counter(temp_input_file)
+            process_time = time.time() - process_start
+            
+            # 构建代理文件的S3路径
+            proxy_key = f"proxy/{os.path.splitext(object_key)[0]}_proxy.mp4"
+            
+            # 上传代理文件到S3
+            upload_start = time.time()
+            logger.info(f"开始上传代理文件到S3: {bucket_name}/{proxy_key}")
+            self.s3_client.upload_file(temp_output_file, bucket_name, proxy_key)
+            upload_time = time.time() - upload_start
+            
+            total_time = time.time() - start_time
+            
+            return {
+                "original": {
+                    "bucket": bucket_name,
+                    "key": object_key
+                },
+                "proxy": {
+                    "bucket": bucket_name,
+                    "key": proxy_key
+                },
+                "processing_times": {
+                    "download": round(download_time, 2),
+                    "process": round(process_time, 2),
+                    "upload": round(upload_time, 2),
+                    "total": round(total_time, 2)
+                }
+            }
+            
+        finally:
+            # 清理临时文件
+            if temp_input_file:
+                self.cleanup_temp_file(temp_input_file)
+            if temp_output_file:
+                self.cleanup_temp_file(temp_output_file) 

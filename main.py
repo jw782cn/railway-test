@@ -97,3 +97,44 @@ async def process_video(request: VideoRequest):
     except Exception as e:
         logger.error(f"视频处理失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"视频处理失败: {str(e)}")
+
+@app.post("/create-proxy")
+async def create_proxy(request: VideoRequest):
+    """
+    为S3中的视频创建代理文件（720p 30fps带帧数计数器）
+    
+    1. 从S3下载视频
+    2. 创建720p 30fps的代理文件，并添加帧数计数器
+    3. 上传代理文件到S3
+    4. 返回原始文件和代理文件的信息
+    """
+    try:
+        # 从环境变量获取存储桶名称
+        bucket_name = os.environ.get("AWS_BUCKET_NAME")
+        if not bucket_name:
+            raise HTTPException(status_code=500, detail="环境变量AWS_BUCKET_NAME未设置")
+            
+        # 获取AWS凭证
+        aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
+        aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        region_name = os.environ.get("AWS_REGION", "us-east-1")
+        
+        # 初始化视频处理器
+        processor = VideoProcessor(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=region_name
+        )
+        
+        # 处理视频并创建代理文件
+        logger.info(f"开始创建代理文件: {bucket_name}/{request.object_key}")
+        result = processor.process_and_upload_proxy(bucket_name, request.object_key)
+        
+        return {
+            "status": "success",
+            "message": "代理文件创建成功",
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"创建代理文件失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"创建代理文件失败: {str(e)}")
