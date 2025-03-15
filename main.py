@@ -56,6 +56,7 @@ async def check_ffmpeg():
 # 定义请求模型
 class VideoRequest(BaseModel):
     object_key: str = Field(..., description="S3对象键（路径）")
+    add_text: bool = Field(True, description="是否添加帧数计数器")
 
 @app.post("/process-video")
 async def process_video(request: VideoRequest):
@@ -128,7 +129,7 @@ async def create_proxy(request: VideoRequest):
         
         # 处理视频并创建代理文件
         logger.info(f"开始创建代理文件: {bucket_name}/{request.object_key}")
-        result = processor.process_and_upload_proxy(bucket_name, request.object_key)
+        result = processor.process_and_upload_proxy(bucket_name, request.object_key, add_text=request.add_text)
         
         return {
             "status": "success",

@@ -180,7 +180,7 @@ class VideoProcessor:
             if temp_file_path:
                 self.cleanup_temp_file(temp_file_path)
 
-    def create_proxy_with_counter(self, input_file, output_file=None):
+    def create_proxy_with_counter(self, input_file, output_file=None, add_text=True):
         """
         将视频压制为720p 30fps并添加帧数计数器
 
@@ -214,7 +214,9 @@ class VideoProcessor:
                 "-i",
                 input_file,
                 "-vf",
-                f"scale=-1:540,fps=fps=30,drawtext=text='%{{frame_num}}':x=10:y=h-th-10:fontfile={font_path}:fontsize=60:fontcolor=yellow:box=1:boxcolor=black@0.5",
+                f"scale=-1:540,fps=fps=30,drawtext=text='%{{frame_num}}':x=10:y=h-th-10:fontfile={font_path}:fontsize=60:fontcolor=yellow:box=1:boxcolor=black@0.5"
+                if add_text
+                else "scale=-1:540,fps=fps=30",
                 "-c:v",
                 "libx264",  # 视频编码使用h264
                 "-preset",
@@ -258,12 +260,14 @@ class VideoProcessor:
                     os.remove(output_file)
                     logger.info(f"删除不完整的输出文件: {output_file}")
                 except Exception as cleanup_error:
-                    logger.error(f"删除不完整的输出文件失败: {output_file} {cleanup_error}")
+                    logger.error(
+                        f"删除不完整的输出文件失败: {output_file} {cleanup_error}"
+                    )
             raise Exception(f"视频处理失败: {str(e)}")
 
-    def process_and_upload_proxy(self, bucket_name, object_key):
+    def process_and_upload_proxy(self, bucket_name, object_key, add_text=True):
         """
-        下载视频，创建代理文件（720p 30fps带帧数计数器），并上传到S3
+        下载视频，创建代理文件（540p 30fps带帧数计数器），并上传到S3
 
         Args:
             bucket_name (str): S3存储桶名称
@@ -283,7 +287,7 @@ class VideoProcessor:
 
             # 创建代理文件
             process_start = time.time()
-            temp_output_file = self.create_proxy_with_counter(temp_input_file)
+            temp_output_file = self.create_proxy_with_counter(temp_input_file, add_text=add_text)
             process_time = time.time() - process_start
 
             # 构建代理文件的S3路径
