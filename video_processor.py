@@ -203,6 +203,8 @@ class VideoProcessor:
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
+            font_path = self.font_path
+
             logger.info(f"开始处理视频: {input_file}")
 
             # 使用subprocess直接调用ffmpeg命令
@@ -212,7 +214,7 @@ class VideoProcessor:
                 "-i",
                 input_file,
                 "-vf",
-                "scale=-1:720,fps=fps=30,drawtext=text='%{frame_num}':x=10:y=h-th-10:fontsize=48:fontcolor=yellow:box=1:boxcolor=black@0.5",
+                f"scale=-1:540,fps=fps=30,drawtext=text='%{{frame_num}}':x=10:y=h-th-10:fontfile={font_path}:fontsize=60:fontcolor=yellow:box=1:boxcolor=black@0.5",
                 "-c:v",
                 "libx264",  # 视频编码使用h264
                 "-preset",

@@ -13,7 +13,7 @@ class TestVideoProcessor(unittest.TestCase):
     def tearDown(self):
         """在每个测试用例后运行，清理测试环境"""
         # 删除测试过程中创建的临时目录
-        shutil.rmtree(self.test_dir)
+        # shutil.rmtree(self.test_dir)
 
     def test_create_proxy_with_counter(self):
         """测试代理视频创建功能"""
