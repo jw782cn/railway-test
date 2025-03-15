@@ -201,7 +201,8 @@ class VideoProcessor:
             stream = ffmpeg.filter(stream, 'scale', -1, 720)  # 保持宽高比，高度设为720
             stream = ffmpeg.filter(stream, 'fps', fps=30)
             
-            # 添加帧数计数器，使用指定字体
+            # 添加帧数计数器
+            # 尝试不使用字体文件，直接使用简单的drawtext配置
             drawtext_args = {
                 'text': '%{frame_num}',
                 'x': 10,
@@ -212,12 +213,12 @@ class VideoProcessor:
                 'boxcolor': 'black@0.5'
             }
             
-            # 如果有字体文件，则使用它
-            if self.font_path:
+            # 只有在确认字体文件存在时才使用它
+            if self.font_path and os.path.exists(self.font_path):
                 drawtext_args['fontfile'] = self.font_path
                 logger.info(f"使用字体文件: {self.font_path}")
             else:
-                logger.info("未找到字体文件，使用系统默认字体")
+                logger.warning("未找到字体文件或字体文件不存在，将使用系统默认字体")
             
             stream = ffmpeg.filter(stream, 'drawtext', **drawtext_args)
             
@@ -231,14 +232,29 @@ class VideoProcessor:
                 crf=23  # 视频质量参数，范围0-51，越小质量越好
             )
             
-            # 执行处理
-            ffmpeg.run(stream, overwrite_output=True)
+            # 添加详细日志记录
+            logger.info("FFmpeg命令: " + ' '.join(ffmpeg.compile(stream)))
             
-            logger.info(f"视频处理完成: {output_file}")
+            # 执行处理，捕获标准错误输出
+            try:
+                stdout, stderr = ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+                logger.info(f"视频处理完成: {output_file}")
+            except ffmpeg.Error as e:
+                # 记录详细的ffmpeg错误信息
+                logger.error(f"FFmpeg错误: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+                raise Exception(f"FFmpeg处理失败: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+            
             return output_file
             
         except Exception as e:
             logger.error(f"视频处理失败: {str(e)}")
+            # 如果输出文件已经创建但处理失败，删除它
+            if output_file and os.path.exists(output_file):
+                try:
+                    os.remove(output_file)
+                    logger.info(f"删除不完整的输出文件: {output_file}")
+                except Exception as e:
+                    logger.error(f"删除不完整的输出文件失败: {output_file}")
             raise Exception(f"视频处理失败: {str(e)}")
 
     def process_and_upload_proxy(self, bucket_name, object_key):
