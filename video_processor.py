@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 import ffmpeg
 import logging
 import time
+import requests
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +25,32 @@ class VideoProcessor:
             region_name=region_name
         )
         self.temp_dir = tempfile.gettempdir()
+        self.font_path = self._ensure_font()
     
+    def _ensure_font(self):
+        """
+        确保字体文件存在，如果不存在则下载
+        """
+        # 字体文件路径
+        font_path = os.path.join(self.temp_dir, "NotoSans-Regular.ttf")
+        
+        # 如果字体文件不存在，则下载
+        if not os.path.exists(font_path):
+            try:
+                logger.info("正在下载字体文件...")
+                # Noto Sans Regular 字体的 Google Fonts 下载链接
+                font_url = "https://fonts.google.com/download?family=Noto%20Sans"
+                response = requests.get(font_url)
+                with open(font_path, 'wb') as f:
+                    f.write(response.content)
+                logger.info(f"字体文件已下载到: {font_path}")
+            except Exception as e:
+                logger.error(f"下载字体文件失败: {e}")
+                # 如果下载失败，使用系统默认字体
+                font_path = None
+        
+        return font_path
+
     def download_video(self, bucket_name, object_key):
         """
         从S3下载视频文件到临时目录
@@ -175,18 +201,22 @@ class VideoProcessor:
             stream = ffmpeg.filter(stream, 'scale', -1, 720)  # 保持宽高比，高度设为720
             stream = ffmpeg.filter(stream, 'fps', fps=30)
             
-            # 添加帧数计数器
-            stream = ffmpeg.filter(
-                stream,
-                'drawtext',
-                text='%{frame_num}',
-                x=10,
-                y='h-th-10',
-                fontsize=48,  # 由于是720p，字体设置小一些
-                fontcolor='yellow',
-                box=1,
-                boxcolor='black@0.5'
-            )
+            # 添加帧数计数器，使用指定字体
+            drawtext_args = {
+                'text': '%{frame_num}',
+                'x': 10,
+                'y': 'h-th-10',
+                'fontsize': 48,
+                'fontcolor': 'yellow',
+                'box': 1,
+                'boxcolor': 'black@0.5'
+            }
+            
+            # 如果有字体文件，则使用它
+            if self.font_path:
+                drawtext_args['fontfile'] = self.font_path
+            
+            stream = ffmpeg.filter(stream, 'drawtext', **drawtext_args)
             
             # 设置输出参数
             stream = ffmpeg.output(
