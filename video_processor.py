@@ -215,6 +215,9 @@ class VideoProcessor:
             # 如果有字体文件，则使用它
             if self.font_path:
                 drawtext_args['fontfile'] = self.font_path
+                logger.info(f"使用字体文件: {self.font_path}")
+            else:
+                logger.info("未找到字体文件，使用系统默认字体")
             
             stream = ffmpeg.filter(stream, 'drawtext', **drawtext_args)
             
